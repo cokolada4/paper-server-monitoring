@@ -1,0 +1,30 @@
+general:
+  enabled: true
+  debug: false
+
+connection:
+  host: "127.0.0.1"
+  port: 8765
+  authentication_token: "GENERATED_SECRET"
+  reconnect_interval: 5
+
+collection:
+  performance_interval: 20
+  player_interval: 40
+  world_interval: 200
+  entity_interval: 300
+  plugin_interval: 600
+
+modules:
+  performance: true
+  players: true
+  worlds: true
+  entities: true
+  plugins: true
+  events: true
+  administration: true
+
+security:
+  allow_remote_commands: true
+  allow_inventory_access: false
+  allow_sensitive_player_data: false

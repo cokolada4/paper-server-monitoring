@@ -1,0 +1,7 @@
+name: MSCC-Bridge
+version: '1.0.0'
+main: com.mscc.bridge.MSCCBridge
+api-version: '1.21'
+author: MSCC
+description: Bridge plugin connecting Paper 1.21.4 server to MSCC Host Agent
+folia-supported: true
