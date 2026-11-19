@@ -14,7 +14,9 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class ApiServer {
 
@@ -42,17 +44,55 @@ public class ApiServer {
         });
 
         server.createContext("/metrics", new AuthenticatedHandler(exchange -> {
-            Map<String, Object> data = new HashMap<>();
-            data.put("performance", plugin.getPerformanceCollector().collectMetrics());
-            data.put("players", plugin.getPlayerCollector().collectOnlinePlayers());
-            data.put("worlds", plugin.getWorldCollector().collectWorlds());
-            data.put("entities", plugin.getEntityCollector().collectEntities());
-            data.put("events", plugin.getEventCollector().drainEvents());
-            sendResponse(exchange, 200, data);
+            if (!plugin.isEnabled()) {
+                sendResponse(exchange, 503, Map.of("error", "Server is shutting down"));
+                return;
+            }
+
+            CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                try {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("performance", plugin.getPerformanceCollector().collectMetrics());
+                    data.put("players", plugin.getPlayerCollector().collectOnlinePlayers());
+                    data.put("worlds", plugin.getWorldCollector().collectWorlds());
+                    data.put("entities", plugin.getEntityCollector().collectEntities());
+                    data.put("events", plugin.getEventCollector().drainEvents());
+                    future.complete(data);
+                } catch (Throwable t) {
+                    future.completeExceptionally(t);
+                }
+            });
+
+            try {
+                Map<String, Object> data = future.get(5, TimeUnit.SECONDS);
+                sendResponse(exchange, 200, data);
+            } catch (Exception e) {
+                sendResponse(exchange, 500, Map.of("error", "Failed to collect metrics: " + e.getMessage()));
+            }
         }));
 
         server.createContext("/plugins", new AuthenticatedHandler(exchange -> {
-            sendResponse(exchange, 200, plugin.getPluginCollector().collectPlugins());
+            if (!plugin.isEnabled()) {
+                sendResponse(exchange, 503, Map.of("error", "Server is shutting down"));
+                return;
+            }
+
+            CompletableFuture<List<Map<String, Object>>> future = new CompletableFuture<>();
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                try {
+                    future.complete(plugin.getPluginCollector().collectPlugins());
+                } catch (Throwable t) {
+                    future.completeExceptionally(t);
+                }
+            });
+
+            try {
+                List<Map<String, Object>> data = future.get(5, TimeUnit.SECONDS);
+                sendResponse(exchange, 200, data);
+            } catch (Exception e) {
+                sendResponse(exchange, 500, Map.of("error", "Failed to collect plugins: " + e.getMessage()));
+            }
         }));
 
         server.createContext("/command", new AuthenticatedHandler(exchange -> {
